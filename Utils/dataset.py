@@ -6,7 +6,30 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 import csv
 from PIL import Image
+import os
 import random
+
+class Passwords_File(Dataset):
+    def __init__ (self, imgs_path, transformers = None):
+        # images names and labels in matching indices
+        self.imgs = [img for img in os.listdir(imgs_path) if img.endswith('jpg') or img.endswith('png')]    
+        self.imgs_file = imgs_path
+        self.transformers = transformers
+    
+    def __getitem__(self, index):
+        # image
+        img_path = self.imgs_file + '/' + self.imgs[index]
+        img = Image.open(img_path).convert('L')
+        
+        # image augmentation
+        if self.transformers != None:
+            img = self.transformers(img)
+        img = transforms.ToTensor()(img)
+        
+        return (img_path, img)
+    
+    def __len__(self):
+        return len(self.imgs)
 
 class Passwords_data(Dataset):
     def __init__ (self, csv_Path, imgs_path, transformers = None):
@@ -56,20 +79,24 @@ class ResizeNormalize (object):
 
 # adjust patch images to have same shape
 class AlignBatch(object):
-    def __init__(self, imgH = 32, imgW = 100, keep_ratio = True, min_ratio = 1, padding = False):
+    def __init__(self, imgH = 32, imgW = 100, keep_ratio = True, min_ratio = 1, padding = False, recognize = False):
         self.imgH = imgH
         self.imgW = imgW
         self.keep_ratio = keep_ratio
         self.min_ratio = min_ratio
         self.padding = padding
+        self.recognize = recognize
         
     def __call__(self, batch):
-        img_paths, imgs, lables = zip(*batch)
+        if self.recognize:
+            img_paths, imgs = zip(*batch) # for Passwords_File
+        else :
+            img_paths, imgs, lables = zip(*batch) # Passwords_data
         imgH = self.imgH
         imgW = self.imgW
         
         if(self.keep_ratio):
-            max_ratio = 0
+            max_ratio = 1
             for img in imgs:
                 #print(img.shape)
                 _, h, w = img.shape
@@ -89,7 +116,10 @@ class AlignBatch(object):
         resizer = ResizeNormalize((imgH, imgW))
         imgs = [resizer(img).unsqueeze(0) for img in imgs]
         imgs = torch.cat(imgs, 0)
-        return img_paths, imgs, lables
+        if self.recognize:
+            return img_paths, imgs
+        else :
+            return img_paths, imgs, lables
                     
 
 # dataloder sampler to compine images with the same shape

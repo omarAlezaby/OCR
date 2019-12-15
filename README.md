@@ -16,10 +16,10 @@ Evaluates the model on 100 images of passwords
 | Metric                         | value |
 | -------------------------------|:-----:|
 | Word Recognition Accuracy      | 81.00%|
-| Character Recognition Accuracy | 95.07%|
-| Character Recognition Precision| 94.05 |
-| Character Recognition Recall   | 95.02 |
-| Character Recognition F1_score | 94.09 |
+| Character Recognition Accuracy | 95.83%|
+| Character Recognition Precision| 96.10 |
+| Character Recognition Recall   | 95.83 |
+| Character Recognition F1_score | 95.51 |
 
 ## Requirements
 ```
@@ -97,4 +97,8 @@ Track training progress in Tensorboard:
 ```
 $ tensorboard --logdir='logs' --port=6006
 ```
+
+## References
+- ["An End-to-End Trainable Neural Network for Image-based Sequence Recognition and Its Application to Scene Text Recognition"](https://arxiv.org/abs/1507.05717) 
+-  [CRNN Repo](https://github.com/bgshih/crnn)
 

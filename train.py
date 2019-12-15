@@ -3,23 +3,27 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
 import torchvision.transforms as transforms
 import torchvision
+
 import PIL
 import time
 import collections
 import argparse
-
-from Utils.dataset import *
-from Utils.logger import *
-from Utils.utils import * 
-from model import *
-
 import os
 
+from utils.dataset import *
+from utils.logger import *
+from utils.utils import * 
+from model import *
 
+
+# train the model for one epoch
 def train(model, criterion, optimizer, logger, train_dataloder, batch_size, epoch_num):
+    
     model.train()
+
     epoch_loss = 0
     samples_num = 0
     
@@ -48,18 +52,20 @@ def train(model, criterion, optimizer, logger, train_dataloder, batch_size, epoc
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        
+    
+    # compute epoch loss
     epoch_loss /= samples_num
     logger.scalar_summary('loss_epochs', epoch_loss, epoch_num)
     
     return epoch_loss
 
 
-def val(model, criterion, logger, val_dataloder, epoch_num, batch_size=16, test_display=4):
+# compute model accuracy
+def val(model, criterion, logger, val_dataloder, epoch_num, batch_size=16, test_display=4, log_name='val'):
+    
     model.eval()
     
     nCorrect_words = 0
-    #nCorrect_chars = 0
     val_loss = 0
     samples_num = 0
     
@@ -99,8 +105,8 @@ def val(model, criterion, logger, val_dataloder, epoch_num, batch_size=16, test_
     #compute loss and accurcy
     word_accurcy = nCorrect_words / samples_num
     val_loss /= samples_num
-    logger.scalar_summary('val_loss', val_loss, epoch_num)
-    logger.scalar_summary('val_WordAccurcy', word_accurcy, epoch_num)
+    logger.scalar_summary(log_name + '_loss', val_loss, epoch_num)
+    logger.scalar_summary(log_name + '_WordAccurcy', word_accurcy, epoch_num)
     
     return val_loss, word_accurcy
 
@@ -116,11 +122,11 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=int, default=.001, help="learning rate value")
     parser.add_argument("--test_display", type=int, default=4, help="number of examples outputs to display")
     parser.add_argument("--val_each", type=int, default=1, help="number of epoch to validate after")
-    parser.add_argument("--weights_file", type=str, default='crnn.pth', help="the path for the weights file")
+    parser.add_argument("--weights_file", type=str, default='weights/crnn.pth', help="the path for the weights file")
     parser.add_argument("--fixed_seed", type=int, default=12, help="the seed for random functionalities")
-    parser.add_argument("--imgs_folder", type=str, default='train_passwordv3', help="imges folder path ")
-    parser.add_argument("--train_file", type=str, default='password_train.csv', help="training csv file path")
-    parser.add_argument("--val_file", type=str, default='password_val.csv', help="val csv file path")
+    parser.add_argument("--imgs_folder", type=str, default='data/train_passwordv3', help="imges folder path ")
+    parser.add_argument("--train_file", type=str, default='data/password_train.csv', help="training csv file path")
+    parser.add_argument("--val_file", type=str, default='data/password_val.csv', help="val csv file path")
     opt = parser.parse_args()
     print(opt)
 
@@ -128,7 +134,6 @@ if __name__ == "__main__":
     inChannels = 1
     imgH = 32
     nHidden = 256
-
 
     # create used files
     os.makedirs('checkpoints', exist_ok=True)
@@ -152,22 +157,22 @@ if __name__ == "__main__":
                 if c in char_ststistics: char_ststistics[c] += 1
                 else: char_ststistics[c] = 1
 
-    alphapet = ''
+    alphabet = ''
     for c in sorted(char_ststistics):
-        alphapet += c
+        alphabet += c
 
-    nClasses = len(alphapet) + 1
-    print (f'alphapet is {alphapet}')
+    nClasses = len(alphabet) + 1
+    print (f'alphapet is {alphabet}')
     print(f'number of classes id {nClasses-1} + blank\n\n')
 
-    # fix seeds
+    # fix seeds for detemastic accuracies
     random.seed(opt.fixed_seed)
     np.random.seed(opt.fixed_seed)
     torch.manual_seed(opt.fixed_seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # train tranformers
+    # train Augmentation
     train_transforms = transforms.Compose([
         transforms.RandomApply([
             transforms.RandomChoice([
@@ -184,6 +189,13 @@ if __name__ == "__main__":
     train_dataloder = DataLoader(train_dataset, batch_size=opt.batch_size, collate_fn=align, 
                         shuffle= True, num_workers=opt.n_workers)
 
+    # dataloader to compute train accurcy
+    train_val_dataset = Passwords_data(opt.train_file, opt.imgs_folder)
+
+    align = AlignBatch()
+    train_val_dataloder = DataLoader(train_val_dataset, batch_size=opt.batch_size, collate_fn=align, 
+                        shuffle= False, num_workers=opt.n_workers)
+
     # validation dataloder
     val_dataset = Passwords_data(opt.val_file, opt.imgs_folder)
 
@@ -197,7 +209,7 @@ if __name__ == "__main__":
 
     # use pretrained weights
     if opt.weights_file.find('checkpoints/') == -1 :
-        # use pretrained paper model
+        # use pretrained weights from english alphabet model
         model_dict = crnn.state_dict() # state of the current model
         pretrained_dict = torch.load(opt.weights_file) # state of the pretrained model
         # remove the classifier from the state
@@ -216,7 +228,7 @@ if __name__ == "__main__":
     print(crnn)
 
     # string label converter 
-    converter = strLabelConverter(alphapet, ignore_case=False)
+    converter = strLabelConverter(alphabet, ignore_case=False)
 
     # loss function 
     criterion = nn.CTCLoss()
@@ -232,7 +244,7 @@ if __name__ == "__main__":
     # start training
     best_acc = 0
     for epoch in range(opt.epochs_num):
-        
+        #train
         tick = time.time()
         train_loss = train(crnn, criterion, optimizer, logger, 
                         train_dataloder, opt.batch_size, epoch)
@@ -240,29 +252,34 @@ if __name__ == "__main__":
         
         print(f'Epoch {epoch} finished in {(tock - tick) / 60} minutes')
         print(f'Epoch {epoch} training_loss = {train_loss}')
+
+        # compute training accuracy
+        train_acc = val(crnn, criterion, logger, train_val_dataloder,
+                        epoch, opt.batch_size, opt.test_display, log_name='train_val')
         
+        # evaluate
         if epoch % opt.val_each == 0:
             val_loss, val_accurcy = val(crnn, criterion, logger, val_dataloder,
                                         epoch, opt.batch_size, opt.test_display)
             print(f'Epoch {epoch} val_loss = {val_loss}, word_accuracy = {val_accurcy}')
-                
+            
             # save best checkpoint
             if best_acc <= val_accurcy:
                 best_acc = val_accurcy
                 checkpoint = {'input_hight':32,
-                            'output_size':len(alphapet)+1,
-                            'alphapet':alphapet,
+                            'output_size':len(alphabet)+1,
+                            'alphapet':alphabet,
                             'train_transforms':train_transforms,
                             'optim_dic':optimizer.state_dict(),
                             'state_dic':crnn.state_dict(),
                             'epoch':epoch
                             }
                 torch.save(checkpoint,'checkpoints/best_checkpoint.pth')
-        
+
         # save last epoch
         checkpoint = {'input_hight':32,
-                    'output_size':len(alphapet)+1,
-                    'alphapet':alphapet,
+                    'output_size':len(alphabet)+1,
+                    'alphapet':alphabet,
                     'train_transforms':train_transforms,
                     'optim_dic':optimizer.state_dict(),
                     'state_dic':crnn.state_dict(),

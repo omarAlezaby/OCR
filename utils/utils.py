@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset, sampler, DataLoader
 import torch
 import torch.nn.functional as F
+
 import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
@@ -15,6 +16,11 @@ import matplotlib.pyplot as plt
 
 
 def weights_init(m):
+    """intialize the model weights
+
+    Args:
+        m (model): model.
+    """
     class_name = m.__class__.__name__
     if class_name.find('conv') != -1:
         m.weight.data.normal_(0.0, 0.02)
@@ -83,7 +89,7 @@ class strLabelConverter(object):
             length = length[0]
             assert t.numel() == length, "text with length: {} does not match declared length: {}".format(t.numel(), length)
             if raw:
-                return ''.join([self.alphabet[i - 1] for i in t]), [i - 1 for i in t]
+                return [''.join([self.alphabet[i - 1] for i in t])], [i - 1 for i in t]
             else:
                 char_list = []
                 lables_list = []
@@ -91,7 +97,7 @@ class strLabelConverter(object):
                     if t[i] != 0 and (not (i > 0 and t[i - 1] == t[i])):
                         char_list.append(self.alphabet[t[i] - 1])
                         lables_list.append(t[i] - 1)
-                return ''.join(char_list), lables_list
+                return [''.join(char_list)], [lables_list]
         else:
             # batch mode
             assert t.numel() == length.sum(), "texts with length: {} does not match declared length: {}".format(t.numel(), length.sum())
@@ -102,25 +108,37 @@ class strLabelConverter(object):
                 l = length[i]
                 text, lable = self.decode(
                         t[index:index + l], torch.IntTensor([l]), raw=raw)
-                texts.append(text)
-                lables.append(lable)
+                texts.append(text[0])
+                lables.append(lable[0])
                 index += l
             return texts, lables
 
 
-def confusion_matrix(alphapet, y_targets, y_pred):
-    # plot confusion matrix
-    confusion_matrix = np.zeros((len(alphapet)+1, len(alphapet)+1))
+def confusion_matrix(alphabet, y_targets, y_pred):
+    """Plot confusion matrix for characters predictions
+
+    Args:
+        alphabet (str): the used alphabet
+        y_targets (list): target prediction.
+        y_pred (list): model prediction.
+
+    """
+    confusion_matrix = np.zeros((len(alphabet)+1, len(alphabet)+1))
     for c_p, c_t in zip(y_pred, y_targets):
         confusion_matrix[c_t, c_p] += 1
         
-    df = pd.DataFrame(confusion_matrix, index=[c for c in (alphapet+'-')], columns=[c for c in (alphapet+'-')])
-    plt.figure(figsize=(30,30))
-    sn.set(font_scale=1)
+    df = pd.DataFrame(confusion_matrix, index=[c for c in (alphabet+'-')], columns=[c for c in (alphabet+'-')])
+    plt.figure(figsize=(10,15))
     sn.heatmap(df, annot=True)
+    plt.show()
 
 def display_imgs(paths, preds):
-    # display wrong samples\
+    """display worng predictions with the images
+
+    Args:
+        paths (list): images pathes.
+        preds (list): wrong predictions.
+    """
     for path, pred in zip(paths, preds):
         plt.title(pred)
         plt.imshow(np.array(Image.open(path).convert('L')), cmap='gray')

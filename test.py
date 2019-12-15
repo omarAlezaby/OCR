@@ -3,23 +3,26 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
 import torchvision.transforms as transforms
 import torchvision
+
 import PIL
 import time
 import collections
 import sklearn.metrics as metrics
 import argparse
-
-from Utils.dataset import *
-from Utils.logger import *
-from Utils.utils import * 
-from model import *
-
 import os
 
 
-# F1 score
+from utils.dataset import *
+from utils.logger import *
+from utils.utils import * 
+from model import *
+
+
+
+# computer accuracy and F1 score
 def evaluate(model, criterion, val_dataloder, test_display=4):
     model.eval()
     
@@ -65,9 +68,9 @@ def evaluate(model, criterion, val_dataloder, test_display=4):
                 target_lable = [converter.dict[c] for c in target]
                 pred_lable = [converter.dict[c] for c in word_pred]
                 if len(target_lable) > len(pred_lable):
-                    pred_lable.extend([len(alphapet)]*abs(len(target_lable) - len(pred_lable)))
+                    pred_lable.extend([len(alphabet)]*abs(len(target_lable) - len(pred_lable)))
                 elif len(target_lable) < len(pred_lable):
-                    target_lable.extend([len(alphapet)]*abs(len(target_lable) - len(pred_lable)))
+                    target_lable.extend([len(alphabet)]*abs(len(target_lable) - len(pred_lable)))
                 assert len(pred_lable) == len(target_lable), f'not matched{len(target_lable)}, {len(pred_lable)}'
                 y_pred.extend(pred_lable)
                 y_targets.extend(target_lable)
@@ -83,14 +86,16 @@ def evaluate(model, criterion, val_dataloder, test_display=4):
     word_accurcy = nCorrect_words / samples_num
     val_loss /= samples_num
     
+    # compute char accuracy
     char_acc = 0
     for c_p, c_t in zip(y_pred, y_targets):
         if(c_p == c_t): char_acc += 1
     char_acc /= len(y_pred)
     
-    prec = metrics.precision_score(y_targets, y_pred, average='macro')
-    recall = metrics.recall_score(y_targets, y_pred, average='macro')
-    f1_score = metrics.f1_score(y_targets, y_pred, average='macro')
+    # compute prec,  recall, f1_score, weighted mode beacause of the unbalanced char apperance
+    prec = metrics.precision_score(y_targets, y_pred, average='weighted')
+    recall = metrics.recall_score(y_targets, y_pred, average='weighted')
+    f1_score = metrics.f1_score(y_targets, y_pred, average='weighted')
     
     return val_loss, word_accurcy, char_acc, prec, recall, f1_score, y_pred, y_targets, worng_samples, worng_preds
 
@@ -105,9 +110,9 @@ if __name__ == "__main__":
     parser.add_argument("--test_display", type=int, default=4, help="number of examples outputs to display")
     parser.add_argument("--checkpoint_path", type=str, default='checkpoints/best_checkpoint.pth', help="the path for the weights file")
     parser.add_argument("--fixed_seed", type=int, default=12, help="the seed for random functionalities")
-    parser.add_argument("--imgs_folder", type=str, default='train_passwordv3', help="imges folder path ")
-    parser.add_argument("--train_file", type=str, default='password_train.csv', help="training csv file path")
-    parser.add_argument("--val_file", type=str, default='password_val.csv', help="val csv file path")
+    parser.add_argument("--imgs_folder", type=str, default='data/train_passwordv3', help="imges folder path ")
+    parser.add_argument("--train_file", type=str, default='data/password_train.csv', help="training csv file path")
+    parser.add_argument("--val_file", type=str, default='data/password_val.csv', help="val csv file path")
     parser.add_argument("--display_wrong", type=bool, default=False, help="display every wrong image with it' worng prediciton")
     parser.add_argument("--display_confusion", type=bool, default=False, help="diplay confusion matrix for predicted characters")
     opt = parser.parse_args()
@@ -134,23 +139,22 @@ if __name__ == "__main__":
                 if c in char_ststistics: char_ststistics[c] += 1
                 else: char_ststistics[c] = 1
 
-    alphapet = ''
+    alphabet = ''
     for c in sorted(char_ststistics):
-        alphapet += c
+        alphabet += c
 
-    nClasses = len(alphapet) + 1
-    print (f'alphapet is {alphapet}')
+    nClasses = len(alphabet) + 1
+    print (f'alphapet is {alphabet}')
     print(f'number of classes id {nClasses-1} + blank\n\n')
 
 
 
-    # fix seeds
+    # fix seeds for detemastic accuracies
     random.seed(opt.fixed_seed)
     np.random.seed(opt.fixed_seed)
     torch.manual_seed(opt.fixed_seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
 
     # validation dataloder
     val_dataset = Passwords_data(opt.val_file, opt.imgs_folder)
@@ -159,16 +163,16 @@ if __name__ == "__main__":
     val_dataloder = DataLoader(val_dataset, batch_size=opt.batch_size, collate_fn=align, 
                         shuffle= False, num_workers=opt.n_workers)
 
-
     # create the model
     crnn = CRNN(imgH, inChannels, nClasses, nHidden)
     crnn.apply(weights_init)
+
     # load checkpoint
     checkpoint = torch.load(opt.checkpoint_path)
     crnn.load_state_dict(checkpoint['state_dic'])
 
     # string label converter 
-    converter = strLabelConverter(alphapet, ignore_case=False)
+    converter = strLabelConverter(alphabet, ignore_case=False)
 
     # loss function 
     criterion = nn.CTCLoss()
@@ -183,8 +187,10 @@ if __name__ == "__main__":
 
     print(f'loss: {val_loss}, word_acc: {word_accurcy}, char_acc: {char_acc}, prec: {prec}, recall: {recall}, f1_score: {f1_score}')
 
+    # display chars confusion matrix
     if opt.display_confusion :
-        confusion_matrix(alphapet, y_targets, y_preds)
+        confusion_matrix(alphabet, y_targets, y_preds)
 
+    # diplay the images of wrong predictions and the wrong lable
     if opt.display_wrong :
         display_imgs(wrong_smaples, wrong_pred)

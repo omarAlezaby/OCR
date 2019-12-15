@@ -1,9 +1,13 @@
 from torch.utils.data import Dataset, sampler, DataLoader
 import torch
 import torch.nn.functional as F
+
 import numpy as np
+
 from torchvision import transforms
+
 import matplotlib.pyplot as plt
+
 import csv
 from PIL import Image
 import os
@@ -56,6 +60,7 @@ class Passwords_data(Dataset):
         if self.transformers != None:
             img = self.transformers(img)
         img = transforms.ToTensor()(img)
+
         # lable
         lable = self.lables[index]
         
@@ -97,10 +102,14 @@ class AlignBatch(object):
         
         if(self.keep_ratio):
             max_ratio = 1
+
+            # find max ratio between w, h
             for img in imgs:
                 #print(img.shape)
                 _, h, w = img.shape
                 if max_ratio < (w/h): max_ratio = (w/h)
+
+            # pad the images to all have the same ratio
             if self.padding:
                 imgs_padded = []
                 for i, img in enumerate(imgs):
@@ -111,11 +120,13 @@ class AlignBatch(object):
                     imgs_padded.append(F.pad(img, (pad, pad), "constant"))
                 imgs = imgs_padded
             
+            # find resize width that keep the ratio between w, h
             imgW = int(max_ratio * imgH)
             
         resizer = ResizeNormalize((imgH, imgW))
         imgs = [resizer(img).unsqueeze(0) for img in imgs]
         imgs = torch.cat(imgs, 0)
+
         if self.recognize:
             return img_paths, imgs
         else :

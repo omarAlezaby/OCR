@@ -2,13 +2,18 @@ from torch.utils.data import Dataset, sampler, DataLoader
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 import numpy as np
+
 from torchvision import transforms
+
 import matplotlib.pyplot as plt
+
 import csv
 from PIL import Image
 import random
 
+# bidrictiona LSTM layer with output
 class BiDrictionalLSTM(nn.Module):
     def __init__(self, nIn, nHidden, nOut):
         super(BiDrictionalLSTM, self).__init__()
@@ -38,7 +43,7 @@ class CRNN(nn.Module):
         
         cnn = nn.Sequential()
         
-        
+        # conv layer with normaliztion and activation
         def conv_layer(layNum, b_n = False):
             nIn = inChannal if layNum == 0 else fn[layNum-1]
             nOut = fn[layNum]
@@ -82,7 +87,7 @@ class CRNN(nn.Module):
         b, c, h, w = conv.shape
         
         assert h == 1, 'the hight after cnn must equal 1'
-        
+        # prepare for RNN 
         conv = conv.squeeze(2)
         conv = conv.permute(2, 0, 1) # sequance, batch, features
         

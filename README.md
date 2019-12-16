@@ -44,13 +44,13 @@ pillow
     $ bash download_weights.sh
 
 ## Recognize
-Uses pre-trained weights to make recognize digits on images.
+Uses pre-trained weights to recognize digits on images.
 #### recognize
 ```
 $ recognize.py [-h] [--batch_size BATCH_SIZE]
                 [--use_cuda USE_GPU] 
                 [--n_workers N_CPU]
-                [--alphapet USED_ALPHABET]
+                [--alphabet USED_ALPHABET]
                 [--checkpoint_path WEIGHTS_PATH]
                 [--fixed_seed RANDOM_SEED]
                 [--imgs_folder IMGS_FOLDER]
@@ -77,15 +77,15 @@ $ train.py [-h] [--epochs_num EPOCHS] [--batch_size BATCH_SIZE]
     $ bash download_weights.sh
     
 #### Image Folder
-Move the images of your dataset single file.
+Move the images of your dataset to a single folder.
 
 #### Train File and Val File
-CSV file that contained 2 columns, first contains the image files names, and the second image label 
+CSV files that containe 2 columns, first column contains the image files names, and the second contains image label 
 
 #### Train
 To train on the custom dataset run:
 ```
-$ python3 train.py --imgs_folder data/ --train_file data_train.csv --val_file data_val.csv --weights_file crnn.pth
+$ python3 train.py --imgs_folder data/ --train_file data_train.csv --val_file data_val.csv --weights_file weights/crnn.pth
 ```
 
 #### Tensorboard
